@@ -1,7 +1,11 @@
-HMC = function (U, grad_U, epsilon, L, current_q)
+#!/usr/bin/env Rscript
+
+library("MASS")
+
+HMC = function (U, grad_U, epsilon, L, mass, current_q)
 {
     q = current_q
-    p = rnorm(length(q),0,1)  # independent standard normal variates
+    p = mvrnorm(length(q), 0, mass) # multivariate normal variates
     current_p = p
     # Make a half step for momentum at the beginning
     p = p - epsilon * grad_U(q) / 2
@@ -28,7 +32,8 @@ HMC = function (U, grad_U, epsilon, L, current_q)
     {
         return (q)  # accept
     }
-    else {
+    else
+    {
         return (current_q)  # reject
     }
 }
