@@ -8,6 +8,11 @@ logmvdnorm <- function (x, mu, Sigma)
     return -length(x)/2 * log(2 * pi) - log(det(Sigma))/2 - d * solve(Sigma) * d / 2
 }
 
+grad_logmvdnorm <- function (x, mu, Sigma)
+{
+    return - solve(Sigma) * (x - mu)
+}
+
 HMC <- function (U, grad_U, epsilon, L, mass, current_q)
 {
     q <- current_q
