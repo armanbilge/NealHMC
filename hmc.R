@@ -5,18 +5,15 @@ library("MASS")
 logmvdnorm <- function (x, mu, Sigma)
 {
     d <- x - mu
-    return (- length(x)/2 * log(2 * pi) - log(det(Sigma))/2 - d %*% solve(Sigma) %*% d / 2)
+    - length(x)/2 * log(2 * pi) - log(det(Sigma))/2 - d %*% solve(Sigma) %*% d / 2
 }
 
-grad_logmvdnorm <- function (x, mu, Sigma)
-{
-    return (- solve(Sigma) %*% (x - mu))
-}
+grad_logmvdnorm <- function (x, mu, Sigma) - c(solve(Sigma) %*% (x - mu))
 
 HMC <- function (U, grad_U, epsilon, L, mass, current_q)
 {
     q <- current_q
-    p <- mvrnorm(length(q), rep.int(0, length(q)), mass) # multivariate normal variates
+    p <- mvrnorm(1, rep.int(0, length(q)), mass) # multivariate normal variates
     current_p <- p
     # Make a half step for momentum at the beginning
     p <- p - epsilon * grad_U(q) / 2
@@ -39,7 +36,6 @@ HMC <- function (U, grad_U, epsilon, L, mass, current_q)
     proposed_K <- -logmvdnorm(p, rep.int(0, length(q)), mass)
     # Accept or reject the state at end of trajectory, returning either
     # the position at the end of the trajectory or the initial position
-    print(current_U)
     if (log(runif(1)) < (current_U-proposed_U+current_K-proposed_K))
     {
         return (q)  # accept
@@ -52,16 +48,17 @@ HMC <- function (U, grad_U, epsilon, L, mass, current_q)
 
 mu <- c(0.07447646, 0.9947984)
 Sigma <- matrix(c(1.24064E-04, 0.0000562561, 0.0000562561, 0.0026316385), c(2, 2))
-mass <- solve(Sigma)
+mass <- diag(2)
+# mass <- solve(Sigma)
 epsilon <- 2E-5
-L <- 16
+L <- 1
 U <- function(q) -logmvdnorm(q, mu, Sigma) + 4404.4148
 grad_U <- function(q) -grad_logmvdnorm(q, mu, Sigma)
 M <- 1000000
 q <- rep.int(1, 2)
-write(paste(c("state", "U", "x", "y"), collapse="\t"))
-write(paste(c(0, U(q), q), collapse="\t"))
+write(paste(c("state", "U", "x", "y"), collapse="\t"), stdout())
+write(paste(c(0, -U(q), q), collapse="\t"), stdout())
 for (i in 1:M) {
     q <- HMC(U, grad_U, epsilon, L, mass, q)
-    write(paste(c(i, -U(q), q), collapse="\t"))
+    write(paste(c(i, -U(q), q), collapse="\t"), stdout())
 }
