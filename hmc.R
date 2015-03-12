@@ -38,11 +38,11 @@ HMC <- function (U, grad_U, epsilon, L, mass, current_q)
     # the position at the end of the trajectory or the initial position
     if (log(runif(1)) < (current_U-proposed_U+current_K-proposed_K))
     {
-        return (q)  # accept
+        return (list(q = q, a = T))  # accept
     }
     else
     {
-        return (current_q)  # reject
+        return (list(q = current_q, a = F)) # reject
     }
 }
 
@@ -50,15 +50,19 @@ mu <- c(0.07447646, 0.9947984)
 Sigma <- matrix(c(1.24064E-04, 0.0000562561, 0.0000562561, 0.0026316385), c(2, 2))
 mass <- diag(2)
 # mass <- solve(Sigma)
-epsilon <- 2E-5
+epsilon <- 0.25
 L <- 1
 U <- function(q) -logmvdnorm(q, mu, Sigma) + 4404.4148
 grad_U <- function(q) -grad_logmvdnorm(q, mu, Sigma)
-M <- 1000000
+M <- 10000
 q <- rep.int(1, 2)
+accept <- 0
 write(paste(c("state", "U", "x", "y"), collapse="\t"), stdout())
 write(paste(c(0, -U(q), q), collapse="\t"), stdout())
 for (i in 1:M) {
-    q <- HMC(U, grad_U, epsilon, L, mass, q)
+    h <- HMC(U, grad_U, epsilon, L, mass, q)
+    q <- h$q
+    if (h$a) accept <- accept + 1
     write(paste(c(i, -U(q), q), collapse="\t"), stdout())
 }
+write(paste("accept: ", accept / M), stderr())
