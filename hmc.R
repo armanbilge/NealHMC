@@ -5,12 +5,12 @@ library("MASS")
 logmvdnorm <- function (x, mu, Sigma)
 {
     d <- x - mu
-    return (- length(x)/2 * log(2 * pi) - log(det(Sigma))/2 - d * solve(Sigma) * d / 2)
+    return (- length(x)/2 * log(2 * pi) - log(det(Sigma))/2 - d %*% solve(Sigma) %*% d / 2)
 }
 
 grad_logmvdnorm <- function (x, mu, Sigma)
 {
-    return (- solve(Sigma) * (x - mu))
+    return (- solve(Sigma) %*% (x - mu))
 }
 
 HMC <- function (U, grad_U, epsilon, L, mass, current_q)
@@ -39,6 +39,7 @@ HMC <- function (U, grad_U, epsilon, L, mass, current_q)
     proposed_K <- -logmvdnorm(p, rep.int(0, length(q)), mass)
     # Accept or reject the state at end of trajectory, returning either
     # the position at the end of the trajectory or the initial position
+    print(current_U)
     if (log(runif(1)) < (current_U-proposed_U+current_K-proposed_K))
     {
         return (q)  # accept
@@ -62,5 +63,5 @@ write(paste(c("state", "U", "x", "y"), collapse="\t"))
 write(paste(c(0, U(q), q), collapse="\t"))
 for (i in 1:M) {
     q <- HMC(U, grad_U, epsilon, L, mass, q)
-    write(paste(c(i, U(q), q), collapse="\t"))
+    write(paste(c(i, -U(q), q), collapse="\t"))
 }
