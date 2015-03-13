@@ -1,5 +1,7 @@
 #!/usr/bin/env Rscript
 
+identity <- F
+
 library("MASS")
 
 logmvdnorm <- function (x, mu, Sigma)
@@ -48,11 +50,15 @@ HMC <- function (U, grad_U, epsilon, L, mass, current_q)
 
 mu <- c(0.07447646, 0.9947984)
 Sigma <- matrix(c(1.24064E-04, 0.0000562561, 0.0000562561, 0.0026316385), c(2, 2))
-mass <- diag(2)
-# mass <- solve(Sigma)
-epsilon <- 0.25
-L <- 1
-U <- function(q) -logmvdnorm(q, mu, Sigma) + 4404.4148
+if (identity) {
+    mass <- diag(2)
+    epsilon <- 1/52
+} else {
+    mass <- solve(Sigma)
+    epsilon <- 1/30000
+}
+L <- 4
+U <- function(q) -logmvdnorm(q, mu, Sigma) # + 4404.4148
 grad_U <- function(q) -grad_logmvdnorm(q, mu, Sigma)
 M <- 10000
 q <- rep.int(1, 2)
