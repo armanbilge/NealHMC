@@ -1,9 +1,23 @@
 #!/usr/bin/env Rscript
 
-identity <- T
-exact <- T
+set.seed(666)
+identity <- F
+exact <- F
 
 library("MASS")
+
+lpr_mvn <- function (value, grad=FALSE, inv.cov)
+{
+  g <- - inv.cov %*% value
+  r <- as.vector (t(value) %*% g / 2)
+  if (grad)
+  { attr(r,"grad") <- as.vector(g)
+    if (is.na(as.vector(g))) write("ERRORG", stderr())
+  }
+  if (is.na(as.vector(r))) write("ERROR", stderr())
+
+  r
+}
 
 logmvdnorm <- function (x, mu, Sigma)
 {
@@ -60,17 +74,19 @@ mu <- c(0.07447646, 0.9947984)
 Sigma <- matrix(c(1.24064E-04, 0.0000562561, 0.0000562561, 0.0026316385), c(2, 2))
 if (identity) {
     mass <- diag(2)
-    epsilon <- 1/52
-    L <- sqrt(2) / epsilon
-    t <- pi/4
+    epsilon <- 1/50
+    L <- 75
+    t <- pi/2
 } else {
     mass <- solve(Sigma)
-    epsilon <- 1/30000
-    L <- sqrt(2) / epsilon
-    t <- sqrt(2)
+    epsilon <- 1/5000
+    L <- 20
+    t <- pi / 2
 }
-U <- function(q) -logmvdnorm(q, mu, Sigma) # + 4404.4148
-grad_U <- function(q) -grad_logmvdnorm(q, mu, Sigma)
+# U <- function(q) -logmvdnorm(q, mu, Sigma) # + 4404.4148
+# grad_U <- function(q) -grad_logmvdnorm(q, mu, Sigma)
+U <- function(q) lpr_mvn(q - mu, grad = F, solve(Sigma)) # + 4404.4148
+grad_U <- function(q) attr(lpr_mvn(q - mu, grad = T, solve(Sigma)), "grad")
 M <- 10000
 q <- rep.int(1, 2)
 accept <- 0
@@ -88,3 +104,4 @@ for (i in 1:M) {
     write(paste(c(i, -U(q), q), collapse="\t"), stdout())
 }
 write(paste("accept: ", accept / M), stderr())
+warnings()
