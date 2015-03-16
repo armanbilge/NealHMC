@@ -1,6 +1,7 @@
 #!/usr/bin/env Rscript
 
-identity <- F
+identity <- T
+exact <- T
 
 library("MASS")
 
@@ -48,16 +49,26 @@ HMC <- function (U, grad_U, epsilon, L, mass, current_q)
     }
 }
 
+exact_HMC <- function (t, mu, Sigma, q)
+{
+    a <- mvrnorm(1, rep.int(0, length(q)), Sigma)
+    b <- q - mu
+    a * sin(t) + b * cos(t) + mu
+}
+
 mu <- c(0.07447646, 0.9947984)
 Sigma <- matrix(c(1.24064E-04, 0.0000562561, 0.0000562561, 0.0026316385), c(2, 2))
 if (identity) {
     mass <- diag(2)
     epsilon <- 1/52
+    L <- sqrt(2) / epsilon
+    t <- pi/4
 } else {
     mass <- solve(Sigma)
     epsilon <- 1/30000
+    L <- sqrt(2) / epsilon
+    t <- sqrt(2)
 }
-L <- 4
 U <- function(q) -logmvdnorm(q, mu, Sigma) # + 4404.4148
 grad_U <- function(q) -grad_logmvdnorm(q, mu, Sigma)
 M <- 10000
@@ -66,9 +77,14 @@ accept <- 0
 write(paste(c("state", "U", "x", "y"), collapse="\t"), stdout())
 write(paste(c(0, -U(q), q), collapse="\t"), stdout())
 for (i in 1:M) {
-    h <- HMC(U, grad_U, epsilon, L, mass, q)
-    q <- h$q
-    if (h$a) accept <- accept + 1
+    if (exact) {
+        q <- exact_HMC(t, mu, Sigma, q)
+        accept <- accept + 1
+    } else {
+        h <- HMC(U, grad_U, epsilon, L, mass, q)
+        q <- h$q
+        if (h$a) accept <- accept + 1
+    }
     write(paste(c(i, -U(q), q), collapse="\t"), stdout())
 }
 write(paste("accept: ", accept / M), stderr())
