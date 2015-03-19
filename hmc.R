@@ -5,9 +5,20 @@ treeModel <- T
 identity <- F
 exact <- F
 heatmap <- T
+java <- T
 
-library("coda")
-library("MASS")
+library(MASS)
+
+if (java) {
+    library(rJava)
+    .jinit("beast.jar")
+    Double <- J("java.lang.Double")
+    ArrayList <- J("java.util.ArrayList")
+    TraceCorrelation <- J("dr.inference.trace.TraceCorrelation")
+    TraceType <- J("dr.inference.trace.TraceFactory")$TraceType
+} else {
+    library(coda)
+}
 
 lpr_mvn <- function (value, grad=FALSE, inv.cov)
 {
@@ -75,7 +86,8 @@ exact_HMC <- function (t, mu, Sigma, q)
 sample <- function (U, grad_U, epsilon, L, mass, M) {
     q <- rep.int(1, dim(mass)[1])
     accept <- 0
-    X = matrix(nrow = M, ncol = length(q)+1)
+    X = matrix(nrow = M+1, ncol = length(q)+2)
+    X[1,] <- c(0, -U(q), q)
     for (i in 1:M) {
         if (exact) {
             q <- exact_HMC(t, mu, Sigma, q)
@@ -85,7 +97,7 @@ sample <- function (U, grad_U, epsilon, L, mass, M) {
             q <- h$q
             if (h$a) accept <- accept + 1
         }
-        X[i,] <- c(-U(q), q)
+        X[i+1,] <- c(i, -U(q), q)
     }
     list(X = X, a = accept/M)
 }
@@ -94,22 +106,32 @@ if (heatmap) {
     mu <- c(0.07447646, 0.9947984)
     Sigma <- matrix(c(1.24064E-04, 0.0000562561, 0.0000562561, 0.0026316385), c(2, 2))
     epsilon <- sqrt(min(eigen(Sigma)$values))
-    L <- 1
+    L <- 2
+    M <- 1000
     U <- function(q) -logmvdnorm(q, mu, Sigma)
     grad_U <- function(q) -grad_logmvdnorm(q, mu, Sigma)
     n = 1
-    ACT <- matrix(ncol = n*2+1, nrow = n*2+1)
+    ESS <- matrix(ncol = n*2+1, nrow = n*2+1)
     for (i in -n:n) {
         for (j in -n:n) {
-            X <- sample(U, grad_U, epsilon, L, diag(c(2^i, 2^j)), 10000)$X
-            mcmc <- as.mcmc(X)
-            act <- as.vector(autocorr(mcmc, lags = 0, relative = F)[1,1,1])
-            ACT[i+n-1,j+n-1] <- act
-            write.table(X, paste("x", i, j, ".log", sep = ""), quote = F, sep = "\t")
+            X <- sample(U, grad_U, epsilon, L, diag(c(2^i, 2^j)), M)$X
+            if (java) {
+                al <- new(ArrayList, as.integer(M+1))
+                for (d in X[(M/10):(M+1),2]) {
+                    al$add(new(Double, d))
+                }
+                tr <- new(TraceCorrelation, al, TraceType$DOUBLE, as.integer(1))
+                ess <- .jsimplify(tr$getESS())
+            } else {
+                mcmc <- as.mcmc(X[(M/10):(M+1),], start = M/10)
+                ess <- effectiveSize(mcmc)[2]
+            }
+            ESS[i+n+1,j+n+1] <- ess
+            write.table(X, paste("x", i, j, ".log", sep = ""), quote = F, sep = "\t", col.names = c("state", "U", "x", "y"), row.names = F)
         }
     }
-    print(ACT)
-    heatmap(ACT, col = cm.colors(256), Rowv=NA, Colv=NA)
+    print(ESS)
+    heatmap(ESS, col = cm.colors(256), Rowv=NA, Colv=NA)
 } else {
     t <- pi / 2
     if (treeModel) {
