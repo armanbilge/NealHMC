@@ -6,8 +6,16 @@ identity <- F
 exact <- F
 heatmap <- T
 java <- T
+parallel <- T
 
 library(MASS)
+
+if (parallel) {
+    library(foreach)
+    library(doParallel)
+    cl <- makeCluster(detectCores() - 1)
+    registerDoParallel(cl, cores = detectCores() - 1)
+}
 
 if (java) {
     library(rJava)
@@ -106,18 +114,23 @@ if (heatmap) {
     mu <- c(0.07447646, 0.9947984)
     Sigma <- matrix(c(1.24064E-04, 0.0000562561, 0.0000562561, 0.0026316385), c(2, 2))
     epsilon <- sqrt(min(eigen(Sigma)$values))
-    L <- 2
-    M <- 1000
+    L <- 4
+    M <- 10000
     U <- function(q) -logmvdnorm(q, mu, Sigma)
     grad_U <- function(q) -grad_logmvdnorm(q, mu, Sigma)
-    n = 1
-    ESS <- matrix(ncol = n*2+1, nrow = n*2+1)
-    for (i in -n:n) {
-        for (j in -n:n) {
-            X <- sample(U, grad_U, epsilon, L, diag(c(2^i, 2^j)), M)$X
+    n <- 8
+    m <- 8
+    ESS <- matrix(ncol = n+m+1, nrow = n+m+1)
+    for (i in -n:m) {
+        data <- foreach (j = -n:m, .packages = c("MASS")) %dopar%  {
+            sample(U, grad_U, epsilon, L, diag(c(2^i, 2^j)), M)$X
+            # write.table(X, paste("x", i, j, ".log", sep = ""), quote = F, sep = "\t", col.names = c("state", "U", "x", "y"), row.names = F)
+        }
+        for (j in 1:length(data)) {
+            X <- data[[j]]
             if (java) {
-                al <- new(ArrayList, as.integer(M+1))
-                for (d in X[(M/10):(M+1),2]) {
+                al <- new(ArrayList, as.integer(M*9/10+1))
+                for (d in X[(M/10+1):(M+1),2]) {
                     al$add(new(Double, d))
                 }
                 tr <- new(TraceCorrelation, al, TraceType$DOUBLE, as.integer(1))
@@ -126,12 +139,11 @@ if (heatmap) {
                 mcmc <- as.mcmc(X[(M/10):(M+1),], start = M/10)
                 ess <- effectiveSize(mcmc)[2]
             }
-            ESS[i+n+1,j+n+1] <- ess
-            write.table(X, paste("x", i, j, ".log", sep = ""), quote = F, sep = "\t", col.names = c("state", "U", "x", "y"), row.names = F)
+            ESS[i+n+1,j] <- ess
         }
     }
     print(ESS)
-    heatmap(ESS, col = cm.colors(256), Rowv=NA, Colv=NA)
+    heatmap(ESS, col = heat.colors(256), Rowv=NA, Colv=NA, labRow=as.character(-n:m), labCol=as.character(-n:m))
 } else {
     t <- pi / 2
     if (treeModel) {
@@ -181,4 +193,8 @@ if (heatmap) {
         write(paste(c(i, -U(q), q), collapse="\t"), stdout())
     }
     write(paste("accept: ", accept / M), stderr())
+}
+
+if (parallel) {
+    stopCluster(cl)
 }
